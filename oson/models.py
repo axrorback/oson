@@ -14,7 +14,7 @@ class OsonInvoice(models.Model):
         RETURNED = "RETURNED", "Returned"
 
     id = models.UUIDField(primary_key=True,default=uuid.uuid4,editable=False,)
-    transaction_id = models.CharField(max_length=36,unique=True,)
+    transaction_id = models.CharField(max_length=36,unique=True,null=True,blank=True)
     merchant_id = models.PositiveIntegerField()
     bill_id = models.BigIntegerField(null=True,blank=True,)
     phone = models.CharField(max_length=32,)
