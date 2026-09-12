@@ -69,6 +69,7 @@ class OsonInvoiceNotifyAPIView(APIView):
                 "updated_at",
             ],
         )
+        service.post_callback_url(invoice=invoice)
 
         return Response(
             {
