@@ -29,15 +29,15 @@ class OsonService:
 
         payload = {
             "merchant_id": self.merchant_id,
-            "transaction_id": invoice.transaction_id,
+            "transaction_id": invoice.user_account,
             "phone": invoice.phone,
             "user_account": invoice.user_account,
             "amount": float(invoice.amount),
-            "currency": invoice.currency,
+            "currency": "UZS",
             "comment": invoice.comment,
             "return_url": invoice.return_url,
-            "lifetime": invoice.lifetime,
-            "lang": invoice.lang,
+            "lifetime": 10,
+            "lang": "uz",
         }
 
         response = requests.post(
@@ -124,3 +124,14 @@ class OsonService:
             expected_signature,
             signature,
         )
+
+
+    def post_callback_url(self,invoice: OsonInvoice,):
+        result = requests.post(
+            invoice.callback_url,
+            json={
+                "external_service_id":invoice.user_account,
+                "status":invoice.status,
+            }
+        )
+        return result.status_code
