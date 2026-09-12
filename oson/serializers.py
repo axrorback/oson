@@ -9,16 +9,12 @@ class OsonInvoiceCreateSerializer(
     class Meta:
         model = OsonInvoice
         fields = (
-            "transaction_id",
-            "merchant_id",
             "phone",
             "user_account",
             "amount",
-            "currency",
             "comment",
             "return_url",
-            "lifetime",
-            "lang",
+            "callback_url"
         )
 
     def validate_currency(self, value):
