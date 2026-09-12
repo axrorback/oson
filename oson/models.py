@@ -23,6 +23,7 @@ class OsonInvoice(models.Model):
     currency = models.CharField(max_length=3,default="UZS",)
     comment = models.CharField(max_length=255,blank=True,)
     return_url = models.URLField(blank=True,)
+    callback_url = models.URLField(blank=True,)
     lifetime = models.PositiveIntegerField(default=10,)
     lang = models.CharField(max_length=2,default="uz",)
     status = models.CharField(max_length=32,choices=Status,default=Status.REGISTERED,)
