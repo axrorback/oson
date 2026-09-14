@@ -5,14 +5,17 @@ from django.shortcuts import get_object_or_404
 from .models import OsonInvoice
 from .serializers import OsonInvoiceCreateSerializer , OsonInvoiceNotifySerializer
 from .services import OsonService
-
+from config import settings
 
 class OsonInvoiceCreateAPIView(APIView):
 
     def post(self, request):
         serializer = OsonInvoiceCreateSerializer(data=request.data,)
         serializer.is_valid(raise_exception=True,)
-        invoice = OsonInvoice.objects.create(**serializer.validated_data)
+        invoice = OsonInvoice.objects.create(
+            merchant_id=settings.OSON_MERCHANT_ID,
+            **serializer.validated_data,
+        )
         service = OsonService()
         data = service.create_invoice(invoice=invoice,)
 
