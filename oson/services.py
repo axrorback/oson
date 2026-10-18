@@ -124,14 +124,3 @@ class OsonService:
             expected_signature,
             signature,
         )
-
-
-    def post_callback_url(self,invoice: OsonInvoice,):
-        result = requests.post(
-            invoice.callback_url,
-            json={
-                "external_service_id":invoice.user_account,
-                "status":invoice.status,
-            }
-        )
-        return result.status_code
