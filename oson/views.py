@@ -1,9 +1,11 @@
+import secrets
 from rest_framework import status
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
-from .models import OsonInvoice
-from .serializers import OsonInvoiceCreateSerializer , OsonInvoiceNotifySerializer
+from .models import OsonInvoice, OsonTerminalTransaction
+from .serializers import OsonInvoiceCreateSerializer, OsonInvoiceNotifySerializer, OsonMerchantCheckSerializer, OsonMerchantPaySerializer
 from .services import OsonService
 from config import settings
 from .kafka_send import send_payment_event
@@ -112,3 +114,162 @@ class OsonInvoiceNotifyAPIView(APIView):
             {"success": True},
             status=status.HTTP_200_OK,
         )
+
+def verify_oson_token(request):
+    received = request.headers.get("token", "")
+    expected = settings.OSON_SECRET_TOKEN
+
+    return bool(received) and secrets.compare_digest(received,expected,)
+
+
+def find_invoice(data):
+
+    invoices = OsonInvoice.objects.filter(user_account=data["account"],merchant_id=data["merchant_id"],)
+
+    if invoices.count() != 1:
+        return None
+
+    return invoices.first()
+
+
+
+class OsonTerminalCheckAPIView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        if not verify_oson_token(request):
+            return Response({
+                "success": False,
+                "state": 4,
+            })
+
+        serializer = OsonMerchantCheckSerializer(data=request.data,)
+
+        if not serializer.is_valid():
+            return Response({
+                "success": False,
+                "state": -1,
+            })
+
+        data = serializer.validated_data
+        invoice = find_invoice(data)
+
+        if invoice is None:
+            return Response({
+                "success": False,
+                "state": 3,
+            })
+
+        if invoice.status != OsonInvoice.Status.REGISTERED:
+            return Response({
+                "success": False,
+                "state": -1,
+            })
+
+        if data["amount"] != invoice.amount:
+            return Response({
+                "success": False,
+                "state": 5,
+            })
+
+        return Response({
+            "success": True,
+            "state": 1,
+        })
+
+
+class OsonTerminalPayAPIView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        if not verify_oson_token(request):
+            return Response({"state": -1})
+
+        serializer = OsonMerchantPaySerializer(
+            data=request.data,
+        )
+
+        if not serializer.is_valid():
+            return Response({"state": -1})
+
+        data = serializer.validated_data
+        agent_transaction_id = str(data["agent_transaction_id"])
+
+        with transaction.atomic():
+
+            existing = (OsonTerminalTransaction.objects.select_for_update().filter(agent_transaction_id=agent_transaction_id).first())
+
+            if existing is not None:
+                if (
+                    existing.amount != data["amount"]
+                    or existing.invoice.user_account != data["account"]
+                    or existing.invoice.merchant_id != data["merchant_id"]
+                ):
+                    return Response({"state": -1})
+
+                if existing.status == OsonTerminalTransaction.Status.PAID:
+                    return Response({
+                        "state": 1,
+                        "transaction_id": str(existing.pk),
+                    })
+
+                return Response({"state": 2})
+
+            invoice = find_invoice(data)
+
+            if invoice is None:
+                return Response({"state": -1})
+
+            invoice = (
+                OsonInvoice.objects
+                .select_for_update()
+                .get(pk=invoice.pk)
+            )
+
+            if (
+                invoice.status != OsonInvoice.Status.REGISTERED
+                or invoice.amount != data["amount"]
+            ):
+                return Response({"state": -1})
+
+            terminal_tx = OsonTerminalTransaction.objects.create(
+                agent_transaction_id=agent_transaction_id,
+                invoice=invoice,
+                amount=data["amount"],
+                status=OsonTerminalTransaction.Status.PAID,
+            )
+
+            invoice.status = OsonInvoice.Status.PAID
+            invoice.save(update_fields=["status", "updated_at"])
+
+
+            event = {
+                "event": "payment.paid",
+                "provider": "oson",
+                "channel": "terminal",
+                "order_id": str(invoice.pk),
+                "transaction_id": str(terminal_tx.pk),
+                "amount": str(terminal_tx.amount),
+                "status": "paid",
+                "paid_at": timezone.now().isoformat(),
+            }
+
+            def publish_after_commit():
+                try:
+                    send_payment_event(event)
+                except Exception:
+                    logger.exception(
+                        "Failed to publish OSON Terminal payment event. "
+                        "agent_transaction_id=%s",
+                        agent_transaction_id,
+                    )
+
+            transaction.on_commit(publish_after_commit)
+
+
+            return Response({
+                "state": 1,
+                "transaction_id": str(terminal_tx.pk),
+            })
