@@ -35,3 +35,17 @@ class OsonInvoice(models.Model):
 
     def __str__(self):
         return str(self.phone or f"Invoice #{self.user_account}")
+
+class OsonTerminalTransaction(models.Model):
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        PAID = "PAID", "Paid"
+        FAILED = "FAILED", "Failed"
+
+    agent_transaction_id = models.CharField(max_length=64,unique=True,)
+    invoice = models.ForeignKey("oson.OsonInvoice",on_delete=models.PROTECT,related_name="terminal_transactions",)
+    amount = models.DecimalField(max_digits=12,decimal_places=2,)
+    status = models.CharField(max_length=16,choices=Status.choices,default=Status.PENDING,)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
