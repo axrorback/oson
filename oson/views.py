@@ -98,7 +98,7 @@ class OsonInvoiceNotifyAPIView(APIView):
                     "paid_at": timezone.localtime(timezone.now()).isoformat(),
                 }
 
-                def publish_after_commit(event=event):
+                def publish_after_commit():
                     try:
                         send_payment_event(event)
                     except Exception:
