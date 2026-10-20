@@ -273,3 +273,37 @@ class OsonTerminalPayAPIView(APIView):
                 "state": 1,
                 "transaction_id": str(terminal_tx.pk),
             })
+
+class OsonTerminalCheckStatusAPIView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        if not verify_oson_token(request):
+            return Response({"state": -1})
+
+        agent_transaction_id = request.data.get(
+            "agent_transaction_id"
+        )
+
+        if not agent_transaction_id:
+            return Response({"state": -1})
+
+        terminal_tx = (OsonTerminalTransaction.objects.filter(agent_transaction_id=str(agent_transaction_id)).first())
+
+        if terminal_tx is None:
+            return Response({"state": -1})
+
+        if terminal_tx.status == OsonTerminalTransaction.Status.PAID:
+            return Response({
+                "state": 1,
+                "transaction_id": str(terminal_tx.pk),
+            })
+
+        if terminal_tx.status == OsonTerminalTransaction.Status.PENDING:
+            return Response({"state": 2})
+
+        if terminal_tx.status == OsonTerminalTransaction.Status.FAILED:
+            return Response({"state": -1})
+
+        return Response({"state": -1})
