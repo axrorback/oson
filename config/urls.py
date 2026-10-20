@@ -7,6 +7,6 @@ urlpatterns = [
     path("api/oson/", include("oson.urls")),
     path('api/payment/check/', OsonTerminalCheckAPIView.as_view()),
     path('api/payment/pay/', OsonTerminalPayAPIView.as_view()),
-    path('api/payment/chack_status/', OsonTerminalCheckStatusAPIView.as_view())
+    path('api/payment/check_status/', OsonTerminalCheckStatusAPIView.as_view())
 
 ]
